@@ -21,6 +21,12 @@ The compiler module embeds Odin's runtime and the standard library; the packed `
 *is* the standard library (Odin's `base/` and `core/`), so a program compiled in the page is compiled
 against Odin's own sources, under the same zlib license.
 
+## Vendored runtime code
+
+- **`public/odin.js`** — Odin's own JS runtime, copied from
+  `core/sys/wasm/js/odin.js` of the same wodin checkout. It is what a `js_wasm32` program runs on
+  (it defines `window.odin` and the default imports). Part of Odin, under the zlib license.
+
 ## Toolchain used to build it
 
 - **wasi-sdk** (clang/lld and the WASI sysroot, including wasi-libc) — Apache-2.0 WITH

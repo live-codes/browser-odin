@@ -84,6 +84,35 @@ missing import into an opaque link error.
   `fd_read`/`fd_write` the shim provides, so a program reads the page's stdin box with no extra host
   support.
 
+## The JS target, and calling into the page
+
+`js_wasm32` is a different *runtime*, not a different front end: the same compiler module with a
+different `-target`. The program then runs on **Odin's own JS runtime** —
+`core/sys/wasm/js/odin.js`, vendored as `public/odin.js`. That runtime supplies the imports a
+`js_wasm32` module asks for (`env`, `odin_env`, `odin_dom`, `webgl`, `webgl2`) and gives the Odin
+program three things worth naming:
+
+- **`odin_env.write`** carries `fmt` output, so `fmt.println` lands in the page's output pane.
+- **`odin_env.evaluate`** is exposed to Odin as `js.evaluate` — a direct call from Odin into the
+  page's JavaScript, which is what the canvas sample draws through.
+- **An exported `step(dt, ctx) -> bool`** is driven once per `requestAnimationFrame`, with the canvas
+  shown; the page keeps a generation counter so a new Run stops the previous loop.
+
+One thing easy to miss: **a `js_wasm32` program needs an entry point even if it only exports
+`step`.** Compiling the step-only version failed with
+
+```
+/src/main.odin(1:1) Error: Undefined entry point procedure 'main'
+```
+
+so the sample carries a `main` (run through `_start` before the loop begins). `-no-entry-point` is
+the other way out, but then `_start` does not exist and the runtime's boot step is skipped.
+
+The canvas sample is the interop proof: `main` prints once, `step` runs every frame, and each frame
+calls `js.evaluate` with a small script that reads `performance.now()` and draws — verified in
+headless Chrome (`docs/poc-js.png`), where the frames print once a second and the canvas shows the
+drawn mark.
+
 ## Sizes and timings
 
 | | |
@@ -101,7 +130,11 @@ The compiler instance costs about half a second; the module keeps its compiled J
 
 ## What the browser adds over Node
 
-`npm test` compiles and runs every sample in Node using the same `public/wasi.js` the page uses, so
-the compile/run path was never validated only in a browser. The browser-specific parts are the module
-Worker, `WebAssembly.compileStreaming` (needs `application/wasm`), and `DecompressionStream` for the
-pack — all standard, and all exercised by the headless run that produced `docs/poc.png`.
+`npm test` compiles and runs every runnable sample in Node using the same `public/wasi.js` the page
+uses, so the compile/run path was never validated only in a browser. The browser-specific parts are
+the module Worker, `WebAssembly.compileStreaming` (needs `application/wasm`), and
+`DecompressionStream` for the pack — all standard, and all exercised by the headless runs that
+produced `docs/poc.png` and `docs/poc-js.png`.
+
+A `js_wasm32` program cannot be run under Node: its runtime wants a DOM. `npm test` therefore only
+checks that such a sample *compiles*, and the browser run is the proof that it runs.

@@ -10,7 +10,7 @@ import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WasiFileSystem, createWasi, runWasi } from '../public/wasi.js';
-import { SAMPLES, SAMPLE_STDIN } from '../public/samples.js';
+import { SAMPLES, SAMPLE_STDIN, SAMPLE_TARGET } from '../public/samples.js';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const ODIN_ROOT = '/odin';
@@ -97,6 +97,28 @@ const compileAndRun = (module, library, source, { dir = '/src', flags = [], stdi
   return { ok: true, exitCode, output: out.join(''), stderr: err.join(''), compileLog: compileOut.join('') + compileErr.join('') };
 };
 
+// Compile only — enough to check a sample that can only run in a browser
+// (a js_wasm32 program with a `step` export needs a DOM and a canvas).
+const compileOnly = (module, library, source, target) => {
+  const fs = buildLibraryFs(library);
+  fs.writeFile('/src/main.odin', new TextEncoder().encode(source));
+  fs.mkdirAll('/out');
+  const log = [];
+  let code;
+  try {
+    code = runWasi(module, createWasi(fs, {
+      args: ['odin', 'build', '/src', '-out:/out/main.wasm', '-backend:wasm', `-target:${target}`],
+      env: [`ODIN_ROOT=${ODIN_ROOT}`],
+      stdout: (t) => log.push(t),
+      stderr: (t) => log.push(t),
+    }));
+  } catch (error) {
+    return { ok: false, log: log.join('') + String(error) };
+  }
+  const artifact = fs.readFile('/out/main.wasm');
+  return { ok: code === 0 && artifact !== null && artifact.length > 0, code, log: log.join('') };
+};
+
 const main = async () => {
   const { module, library } = loadAssets();
   console.log(`compiler: ${module ? 'loaded' : 'missing'}, library files: ${library.length}`);
@@ -111,13 +133,15 @@ const main = async () => {
     'structs and procedures': 'Vec2{x = 1, y = 2} + Vec2{x = 3, y = 4} = Vec2{x = 4, y = 6}\nsum = 10\n',
     'read from stdin': '4 numbers, sum 10\n',
   };
-  const cases = Object.keys(SAMPLES).map((name) => ({
-    name,
-    source: SAMPLES[name],
-    stdin: SAMPLE_STDIN[name] ?? '',
-    expect: EXPECT[name],
-    expectError: !(name in EXPECT),
-  }));
+  const cases = Object.keys(SAMPLES)
+    .filter((name) => SAMPLE_TARGET[name] !== 'js_wasm32') // a JS sample runs in a browser, not here
+    .map((name) => ({
+      name,
+      source: SAMPLES[name],
+      stdin: SAMPLE_STDIN[name] ?? '',
+      expect: EXPECT[name],
+      expectError: !(name in EXPECT),
+    }));
 
   let failures = 0;
   for (const test of cases) {
@@ -139,6 +163,17 @@ const main = async () => {
       console.log(`     output:   ${JSON.stringify(result.output)}`);
       if (result.crash) console.log(`     crash:    ${result.crash}`);
       if (result.compileLog.trim()) console.log(`     compiler: ${result.compileLog.trim().split('\n').slice(-8).join('\n               ')}`);
+    }
+  }
+
+  // A target-specific sample need only be shown to compile for its target.
+  for (const [name, target] of Object.entries(SAMPLE_TARGET)) {
+    const started = Date.now();
+    const result = compileOnly(module, library, SAMPLES[name], target);
+    console.log(`${result.ok ? 'ok  ' : 'FAIL'} compiles for ${target}: ${name} (${Date.now() - started} ms)`);
+    if (!result.ok) {
+      failures++;
+      console.log(`     compiler: ${result.log.trim().split('\n').slice(-8).join('\n               ')}`);
     }
   }
 

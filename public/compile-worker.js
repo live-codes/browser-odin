@@ -1,15 +1,16 @@
 // The compile worker: runs the Odin compiler (odin.wasm, a WASI command
-// module) off the main thread, then runs the module it produced.
+// module) off the main thread and hands back the module it emitted. Running
+// that module is the page's job — a `js_wasm32` program needs the DOM and the
+// canvas, which live on the main thread.
 //
-// Every compile is a fresh instance of the compiler with its own linear
-// memory — a WASI command module runs once. The file system holding the Odin
-// standard library (base/ and core/, under /odin) is built once and shared;
-// each compile gets its own copy so nothing a previous one wrote can leak in.
+// Every compile is a fresh instance of the compiler with its own linear memory
+// — a WASI command module runs once. The file system holding the Odin standard
+// library (base/ and core/, under /odin) is built once and shared.
 //
-// Messages in:   { type: 'compile', files: [{ path, data }], dir?, flags?, stdin? }
+// Messages in:   { type: 'compile', files: [{ path, data }], dir?, target?, flags? }
 // Messages out:  { type: 'ready' }
-//                { type: 'output', phase: 'compile'|'program', stream, text }
-//                { type: 'done', ok, compileMs, totalMs, exitCode, output }
+//                { type: 'output', stream: 'stdout'|'stderr', text }
+//                { type: 'done', ok, compileMs, exitCode, wasm? }
 
 import { WasiFileSystem, createWasi, runWasi } from './wasi.js';
 
@@ -22,7 +23,7 @@ let compilerModule = null;
 let libraryEntries = null; // [path, Uint8Array] from the pack, shared and read-only
 
 const post = (message) => self.postMessage(message);
-const output = (phase, stream, text) => post({ type: 'output', phase, stream, text });
+const output = (stream, text) => post({ type: 'output', stream, text });
 const ms = (start) => Math.round(globalThis.performance.now() - start);
 
 /** Parse the packed standard library produced by scripts/build-assets.mjs. */
@@ -77,7 +78,7 @@ async function setup() {
 }
 
 async function compile(message) {
-  const { files, dir = '/src', flags = [], stdin = '' } = message;
+  const { files, dir = '/src', target = 'wasi_wasm32', flags = [] } = message;
 
   const fs = libraryFs();
   for (const file of files) {
@@ -88,7 +89,7 @@ async function compile(message) {
   }
   fs.mkdirAll('/out');
 
-  const args = ['odin', 'build', dir, `-out:${PROGRAM}`, '-backend:wasm', '-target:wasi_wasm32', ...flags];
+  const args = ['odin', 'build', dir, `-out:${PROGRAM}`, '-backend:wasm', `-target:${target}`, ...flags];
   const started = globalThis.performance.now();
 
   let code = 1;
@@ -96,62 +97,36 @@ async function compile(message) {
     code = runWasi(compilerModule, createWasi(fs, {
       args,
       env: [`ODIN_ROOT=${ODIN_ROOT}`],
-      stdout: (text) => output('compile', 'stdout', text),
-      stderr: (text) => output('compile', 'stderr', text),
+      stdout: (text) => output('stdout', text),
+      stderr: (text) => output('stderr', text),
     }));
   } catch (error) {
-    output('compile', 'stderr', `The compiler crashed: ${error?.message ?? error}\n`);
-    post({ type: 'done', ok: false, compileMs: ms(started), totalMs: ms(started), exitCode: 1, output: '' });
+    output('stderr', `The compiler crashed: ${error?.message ?? error}\n`);
+    post({ type: 'done', ok: false, compileMs: ms(started), exitCode: 1 });
     return;
   }
 
   const compileMs = ms(started);
   const artifact = code === 0 ? fs.readFile(PROGRAM) : null;
   if (artifact === null || artifact.length === 0) {
-    post({ type: 'done', ok: false, compileMs, totalMs: ms(started), exitCode: code, output: '' });
+    post({ type: 'done', ok: false, compileMs, exitCode: code });
     return;
   }
 
-  // Run the produced program on a fresh, empty file system so it cannot see
-  // the compiler's sources; capture its output the same way.
-  const captured = [];
-  let exitCode = 0;
-  try {
-    const program = await WebAssembly.compile(artifact.slice());
-    exitCode = runWasi(program, createWasi(new WasiFileSystem(), {
-      args: ['main.wasm'],
-      stdin,
-      stdout: (text) => {
-        captured.push(text);
-        output('program', 'stdout', text);
-      },
-      stderr: (text) => output('program', 'stderr', text),
-    }));
-  } catch (error) {
-    output('program', 'stderr', `The program trapped: ${error?.message ?? error}\n`);
-    exitCode = 1;
-  }
-
-  post({
-    type: 'done',
-    ok: code === 0 && exitCode === 0,
-    compileMs,
-    totalMs: ms(started),
-    exitCode,
-    output: captured.join(''),
-  });
+  const bytes = artifact.slice().buffer;
+  post({ type: 'done', ok: true, compileMs, exitCode: 0, wasm: bytes }, [bytes]);
 }
 
 self.onmessage = (event) => {
   const message = event.data ?? {};
   if (message.type === 'compile') {
     compile(message).catch((error) => {
-      output('compile', 'stderr', `Compile failed: ${error?.message ?? error}\n`);
-      post({ type: 'done', ok: false, compileMs: 0, totalMs: 0, exitCode: 1, output: '' });
+      output('stderr', `Compile failed: ${error?.message ?? error}\n`);
+      post({ type: 'done', ok: false, compileMs: 0, exitCode: 1 });
     });
   }
 };
 
 setup().catch((error) => {
-  output('compile', 'stderr', `Failed to load the compiler: ${error?.message ?? error}\n`);
+  output('stderr', `Failed to load the compiler: ${error?.message ?? error}\n`);
 });

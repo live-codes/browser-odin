@@ -1,6 +1,9 @@
 // The sample programs, shared by the page (public/app.js) and the Node test
 // (scripts/smoke.mjs) so a sample that would not compile is caught by
 // `npm test`, not by a user.
+//
+// `SAMPLE_STDIN` pre-fills the stdin box; `SAMPLE_TARGET` switches the target
+// when a sample only makes sense for one of them.
 
 export const SAMPLES = {
   'hello': `package main
@@ -65,6 +68,50 @@ main :: proc() {
 	fmt.printfln("sum = %g", c.x + c.y)
 }
 `,
+  'canvas animation': `package main
+
+import "core:fmt"
+import "core:sys/wasm/js"
+
+// This runs on the js_wasm32 target. The page drives the exported step once
+// per animation frame and shows the canvas; js.evaluate calls straight into
+// the page's JavaScript to draw on it.
+
+elapsed: f64
+frames: int
+
+main :: proc() {
+	fmt.println("drawing on the canvas — press Run to restart")
+}
+
+@(export)
+step :: proc(dt: f64, _: rawptr) -> bool {
+	elapsed += dt
+	frames += 1
+	if frames % 60 == 0 {
+		fmt.printfln("frame %d, %.1f s", frames, elapsed)
+	}
+
+	draw_on_canvas()
+	return true
+}
+
+draw_on_canvas :: proc() {
+	js.evaluate(DRAW)
+}
+
+DRAW :: \`(function () {
+	const c = document.getElementById("canvas");
+	const ctx = c.getContext("2d");
+	const t = performance.now() / 1000;
+	ctx.fillStyle = "#0f1116";
+	ctx.fillRect(0, 0, c.width, c.height);
+	ctx.fillStyle = "#3b82f6";
+	ctx.beginPath();
+	ctx.arc(c.width / 2 + Math.cos(t) * 90, c.height / 2 + Math.sin(t) * 55, 16, 0, Math.PI * 2);
+	ctx.fill();
+})();\`
+`,
   'read from stdin': `package main
 
 import "core:bufio"
@@ -109,4 +156,10 @@ main :: proc() {
 // Samples that expect something on standard input, pre-filled when selected.
 export const SAMPLE_STDIN = {
   'read from stdin': '1\n2\n3\n4\n',
+};
+
+// Samples that only work on one target, applied when the sample is selected.
+export const SAMPLE_TARGET = {
+  'canvas animation': 'js_wasm32',
+  'read from stdin': 'wasi_wasm32',
 };

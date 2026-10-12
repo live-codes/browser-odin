@@ -6,9 +6,9 @@ runs the result. Nothing is uploaded, and no share of the work happens off the p
 
 ```
 your Odin source
-  → odin.wasm        the Odin compiler (wodin's direct wasm backend), a WASI module   → wasm module
-  → WebAssembly      the module the compiler emitted, run under the page's WASI shim
-     (WASI shim)                                                                       → output
+  → odin.wasm   the Odin compiler (wodin's direct wasm backend), a WASI module   → a wasm module
+  → run it      wasi_wasm32: under the page's WASI shim (public/wasi.js)
+                js_wasm32:   under the Odin JS runtime (public/odin.js)         → output / canvas
 ```
 
 This is a proof of concept for adding Odin to [LiveCodes](https://livecodes.io), in the shape of the
@@ -44,16 +44,38 @@ response. `serve.mjs` does both.
 
 | file | what it is |
 | --- | --- |
-| `public/index.html` | the page: editor, Run, stdin, output and diagnostics |
-| `public/app.js` | the page's logic; spawns the worker and runs samples |
-| `public/compile-worker.js` | the compile worker: drives `odin.wasm`, then runs the result |
+| `public/index.html` | the page: editor, target, Run, stdin, canvas, output and diagnostics |
+| `public/app.js` | the page's logic; spawns the worker and runs the compiled module |
+| `public/compile-worker.js` | the compile worker: drives `odin.wasm` and returns the module |
 | `public/wasi.js` | a WASI preview 1 host over an in-memory file system (no SAB) |
+| `public/odin.js` | Odin's own JS runtime — what a `js_wasm32` program runs on (defines `window.odin`) |
 | `public/samples.js` | the sample programs, shared with the test |
-| `assets/` | `odin.wasm` and `odin-src.pack.gz` — built, gitignored |
+| `assets/` | `odin.wasm` and `odin-src.pack.gz` — built and committed |
 
-The page is a thin shell over `public/wasi.js`, which is the whole of the runtime. The worker
-compiles in one instance (a WASI command module runs once) and runs the produced module in another,
-on a fresh, empty file system so the program never sees the compiler's sources.
+The page is a thin shell. The worker only *compiles*; running is the page's job, because a
+`js_wasm32` program needs the DOM and the canvas, which live on the main thread. `public/wasi.js`
+and `public/odin.js` are the two runtimes — the first with no browser API in it at all, the second
+Odin's.
+
+## Targets
+
+The compiler emits for a target that the page then runs:
+
+| target | runs on | what it reaches |
+| --- | --- | --- |
+| `wasi_wasm32` (default) | `public/wasi.js`, an in-memory file system | `core:fmt`, files, **stdin**; the output is captured |
+| `js_wasm32` | `public/odin.js` | `core:fmt` to the output pane, the DOM, and a `<canvas>` |
+
+A `js_wasm32` program that exports
+
+```odin
+@(export)
+step :: proc(dt: f64, _: rawptr) -> bool { … }
+```
+
+is driven once per animation frame and the canvas is shown; anything else runs once at `_start`.
+The **canvas animation** sample shows both: it draws on the canvas by calling the page's JavaScript
+through `js.evaluate`, which is a direct Odin-to-JS call, and prints a line a second through `fmt`.
 
 ## What works
 
@@ -61,8 +83,10 @@ Verified in a real browser (`crossOriginIsolated === false`) and in Node (`npm t
 
 - **Compiling and running what you type**, in the tab — `core:fmt`, loops, slices and `core:slice`,
   structs, procedures, and reading **standard input**.
+- **JS interop and a canvas** — a `js_wasm32` program calls into the page's JavaScript
+  (`js.evaluate`) and draws, animated by an exported `step`.
 - **Diagnostics** with a file, line, column and a caret, instead of a bare exit code.
-- Five samples plus a deliberate type error, all checked by `npm test`.
+- Six samples plus a deliberate type error, all checked by `npm test`.
 
 Measured on this machine (headless Chrome, Node 24): the first compile after the page loads is
 ~1.1 s; later compiles are 0.5–0.6 s, and a program runs in single-digit milliseconds. The compiler
@@ -74,14 +98,16 @@ and cached after that.
 | | why |
 | --- | --- |
 | **The `vendor` collection** (`vendor:raylib`, …) | not shipped: 91 MB, mostly DirectX/SDL and C libraries with prebuilt wasm objects. The collection resolves (empty), so simple programs work; a program that imports a `vendor:` package fails to find it |
-| **Any target but `wasi_wasm32`** | the POC compiles for `wasi_wasm32` so the program runs under the same WASI shim. The backend also emits `js_wasm32` and `freestanding_wasm32` |
+| **`freestanding_wasm32`** | the compiler emits it, but the page only knows how to run `wasi_wasm32` and `js_wasm32` |
+| **`core:os` / `core:bufio` under `js_wasm32`** | the JS target has no file system, which is why the stdin sample switches to `wasi_wasm32` |
+| **Stopping a runaway program** | a program that loops forever blocks the tab — both runtimes run synchronously on the main thread |
 | **Threads, files, sockets** in a compiled program | WASI preview 1 here is single-threaded, and a program is given an empty file system |
 | **Pinning the standard library version** | the pack is built from a wodin checkout; a compiler rebuilt from a different commit wants a matching pack — `build-assets.sh` builds both from the same checkout |
 
 ## Building the assets
 
-The two assets are built, not committed (`assets/` is gitignored); the whole pipeline is in
-`scripts/build-assets.sh`, run on Linux or WSL:
+The two assets are **committed**, so the page can be served with no build step. To rebuild them, the
+whole pipeline is in `scripts/build-assets.sh`, run on Linux or WSL:
 
 ```bash
 WASI_SDK=/opt/wasi-sdk-33 sh scripts/build-assets.sh
@@ -121,7 +147,8 @@ Apache-2.0 WITH LLVM-exception. The compiler module embeds Odin's runtime and st
 
 ## Status
 
-A working proof of concept: the Odin compiler runs in the page, compiles what you type, and the
-result runs — no server, no `SharedArrayBuffer`. [FINDINGS.md](FINDINGS.md) is what was measured and
-what surprised us; the natural next step is wiring it into LiveCodes as a `odin` language, and
+A working proof of concept: the Odin compiler runs in the page and compiles what you type, and the
+result runs — as a `wasi_wasm32` console program or a `js_wasm32` one that reaches the DOM and a
+canvas — with no server and no `SharedArrayBuffer`. [FINDINGS.md](FINDINGS.md) is what was measured
+and what surprised us; the natural next step is wiring it into LiveCodes as a `odin` language, and
 widening the shipped standard library to the `vendor` packages a browser actually needs.

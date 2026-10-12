@@ -100,6 +100,14 @@
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
       @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
       #stderr, #diagnostics { border-left: 3px solid var(--warn); }
+      #canvas {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--panel);
+      }
+      #canvas[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -113,6 +121,12 @@
 
     <div class="toolbar">
       <label>Samples <select id="samples"></select></label>
+      <label>Target
+        <select id="target">
+          <option value="wasi_wasm32">WASI (console)</option>
+          <option value="js_wasm32">JS + canvas</option>
+        </select>
+      </label>
       <button id="run" disabled>Warming up…</button>
       <span style="color: var(--muted)">Ctrl/⌘ + Enter</span>
     </div>
@@ -125,6 +139,8 @@
     </label>
 
     <div id="status" data-state="loading">starting…</div>
+
+    <canvas id="canvas" width="640" height="240" hidden></canvas>
 
     <div class="grid">
       <div>
@@ -140,6 +156,8 @@
     <h2>Compiler diagnostics</h2>
     <pre id="diagnostics"></pre>
 
+    <!-- The Odin JS runtime: what a js_wasm32 program runs on (defines `window.odin`). -->
+    <script src="./odin.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
