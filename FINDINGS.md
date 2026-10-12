@@ -113,6 +113,50 @@ calls `js.evaluate` with a small script that reads `performance.now()` and draws
 headless Chrome (`docs/poc-js.png`), where the frames print once a second and the canvas shows the
 drawn mark.
 
+## Standard input on the js target
+
+The js target is Odin's browser target — DOM, canvas, WebGL, events all work there — but its
+`core:os` is deliberately inert. Two upstream files make that explicit:
+
+```odin
+// core/os/wasm.odin — the whole file
+#+build js wasm32, js wasm64p32
+package os
+#panic("core:os is unsupported on js/wasm")
+```
+
+and `core/os/file_js.odin`, whose stream returns `.Empty` and which never sets `os.stdin`. So on js
+`os.stdin` is nil and `core:bufio` has nothing to read; **standard input and the browser surface do
+not come together in upstream Odin**.
+
+Rather than run a wasi program with JS bolted on (which cannot reuse `core:sys/wasm/js`, a
+js-only package that *panics* on other targets), this repository fills the js gap. Two files in
+`patches/` replace the checkout's copies when the pack is built:
+
+- `core/os/wasm.odin` — the `#panic` removed.
+- `core/os/file_js.odin` — every upstream stub kept, but the three standard streams are given a
+  real implementation; stdin reads through a host `odin_env.read`, wired in `public/app.js` to the
+  page's stdin box.
+
+One js target then has both: `os.stdin` + `core:bufio` read the page, and `core:sys/wasm/js` drives
+it. `read from stdin` is unchanged and now runs on either target.
+
+Three things cost time and are worth writing down:
+
+- **The `#panic` is a file, not a flag.** Removing the `core:os` guard means *replacing* a file that
+  exists only to fail, not passing an option.
+- **`core:os` already owns `read` and `write`.** A `foreign` declaration of either name is a
+  redeclaration error; the host functions are declared as `_env_read` / `_env_write` with
+  `@(link_name="read"/"write")`, so the wasm import names (what the host sees) stay `read`/`write`.
+- **An enum `switch` needs every member listed *and* a `case:` default.** Listing all members
+  satisfies exhaustiveness; the trailing `case:` is what satisfies "the procedure returns". Odin
+  wants both, which is why `file_wasi.odin` has a `case:` the exhaustive list already covers.
+
+The host side is small: `public/app.js` hands the runner a byte buffer of the stdin box and an
+`odin_env.read` that copies into the module's memory and returns the count (0 at end). Because
+`init_std_files` references the stream, **every** js program now imports `odin_env.read`, so the
+page always provides it; `odin.js`'s own `runWasm`, which does not, is not used here.
+
 ## Sizes and timings
 
 | | |

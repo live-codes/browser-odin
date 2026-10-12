@@ -159,7 +159,8 @@ export const SAMPLE_STDIN = {
 };
 
 // Samples that only work on one target, applied when the sample is selected.
+// (Standard input works on both: the js target reads it through odin_env.read,
+// see patches/core/os/file_js.odin and public/app.js.)
 export const SAMPLE_TARGET = {
   'canvas animation': 'js_wasm32',
-  'read from stdin': 'wasi_wasm32',
 };

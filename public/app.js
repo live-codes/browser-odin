@@ -83,6 +83,20 @@ const runJsProgram = async (bytes, generation) => {
     else stderrEl.textContent += text;
   };
 
+  // Standard input, for the patched core:os (patches/core/os/file_js.odin).
+  // `read` fills the module's memory and returns the byte count, 0 at end.
+  const input = new TextEncoder().encode(stdinEl.value);
+  let inputOffset = 0;
+  imports.odin_env.read = (fd, ptr, len) => {
+    if (fd !== 0) return 0;
+    const count = Math.max(0, Math.min(len, input.length - inputOffset));
+    if (count > 0) {
+      new Uint8Array(memory.memory.buffer, ptr, count).set(input.subarray(inputOffset, inputOffset + count));
+      inputOffset += count;
+    }
+    return count;
+  };
+
   let exports;
   try {
     ({ instance: { exports } } = await WebAssembly.instantiate(bytes, imports));

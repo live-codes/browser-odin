@@ -166,14 +166,15 @@ const main = async () => {
     }
   }
 
-  // A target-specific sample need only be shown to compile for its target.
-  for (const [name, target] of Object.entries(SAMPLE_TARGET)) {
+  // Samples that can only be *run* in a browser must at least compile for
+  // js_wasm32 here.
+  for (const name of ['canvas animation', 'read from stdin']) {
     const started = Date.now();
-    const result = compileOnly(module, library, SAMPLES[name], target);
-    console.log(`${result.ok ? 'ok  ' : 'FAIL'} compiles for ${target}: ${name} (${Date.now() - started} ms)`);
+    const result = compileOnly(module, library, SAMPLES[name], 'js_wasm32');
+    console.log(`${result.ok ? 'ok  ' : 'FAIL'} compiles for js_wasm32: ${name} (${Date.now() - started} ms)`);
     if (!result.ok) {
       failures++;
-      console.log(`     compiler: ${result.log.trim().split('\n').slice(-8).join('\n               ')}`);
+      console.log(`     compiler: ${result.log.trim().split('\n').slice(-30).join('\n               ')}`);
     }
   }
 

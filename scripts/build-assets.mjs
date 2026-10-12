@@ -19,6 +19,10 @@
 // core/rexcode is left out: it is the machine-code library, tens of MB of
 // tables and binaries that cannot run in a browser and that no browser
 // program can import. Assembly sources for other targets go too.
+//
+// A file under `patches/`, mirroring its path in the checkout, replaces the
+// checkout's copy (see patches/core/os/file_js.odin — it is what gives the js
+// target standard input).
 
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -27,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SRC = resolve(process.env.ODIN_SRC ?? join(ROOT, '.tools/odin-src'));
+const PATCHES = join(ROOT, 'patches');
 const OUT = join(ROOT, 'assets/odin-src.pack.gz');
 
 const MAGIC = Buffer.from('ODINPOC1', 'latin1');
@@ -39,6 +44,23 @@ const EXCLUDED = [
 
 const isExcluded = (path) => EXCLUDED.some((re) => re.test(path));
 
+/** `patches/**` overrides, keyed by the path they replace under SRC. */
+const loadOverrides = () => {
+  const overrides = new Map();
+  if (!existsSync(PATCHES)) return overrides;
+  const walk = (dir) => {
+    for (const name of readdirSync(dir).sort()) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else overrides.set(relative(PATCHES, full).split(sep).join('/'), readFileSync(full));
+    }
+  };
+  walk(PATCHES);
+  return overrides;
+};
+
+const overrides = loadOverrides();
+
 const walk = (dir, out) => {
   for (const name of readdirSync(dir).sort()) {
     const full = join(dir, name);
@@ -46,7 +68,7 @@ const walk = (dir, out) => {
     if (isExcluded(rel)) continue;
     const stats = statSync(full);
     if (stats.isDirectory()) walk(full, out);
-    else if (stats.isFile()) out.push([rel, readFileSync(full)]);
+    else if (stats.isFile()) out.push([rel, overrides.get(rel) ?? readFileSync(full)]);
   }
   return out;
 };
@@ -86,5 +108,6 @@ writeFileSync(OUT, gzipped);
 const mib = (n) => (n / 1024 / 1024).toFixed(2);
 console.log(`source:   ${SRC}`);
 console.log(`files:    ${entries.length}`);
+console.log(`patched:  ${overrides.size} file${overrides.size === 1 ? '' : 's'} from patches/`);
 console.log(`packed:   ${mib(pack.length)} MiB → ${mib(gzipped.length)} MiB gzipped`);
 console.log(`wrote:    ${OUT}`);

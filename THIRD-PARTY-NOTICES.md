@@ -5,7 +5,7 @@ people's, and this file records it.
 
 ## The compiler module (`assets/odin.wasm`) and the packed sources (`assets/odin-src.pack.gz`)
 
-Built, not committed; both come from a checkout of
+Built and committed; both come from a checkout of
 [**wodin**](https://github.com/karl-zylinski/wodin), the fork of
 [**Odin**](https://github.com/odin-lang/Odin) that adds a direct WebAssembly backend.
 
@@ -20,6 +20,20 @@ Built, not committed; both come from a checkout of
 The compiler module embeds Odin's runtime and the standard library; the packed `odin-src.pack.gz`
 *is* the standard library (Odin's `base/` and `core/`), so a program compiled in the page is compiled
 against Odin's own sources, under the same zlib license.
+
+### Modified standard-library sources
+
+The packed standard library is **not** a pristine copy of Odin's. Two files under
+[`patches/`](patches) replace the checkout's copies, so the js target can have standard input (see
+[FINDINGS.md](FINDINGS.md#standard-input-on-the-js-target)); the modified versions are reproduced in
+full in this repository:
+
+- **`core/os/wasm.odin`** — upstream's compile-time `#panic("core:os is unsupported on js/wasm")` is
+  removed.
+- **`core/os/file_js.odin`** — upstream's inert stubs are kept, but `os.stdin`, `os.stdout` and
+  `os.stderr` are given a real implementation over a host `odin_env.read` / `odin_env.write`.
+
+Both are Odin source, under Odin's zlib license; the modifications are this repository's.
 
 ## Vendored runtime code
 
