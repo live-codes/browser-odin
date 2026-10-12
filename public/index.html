@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Odin in the browser — POC</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1116;
+        --panel: #171a21;
+        --border: #2a2f3a;
+        --text: #d7dce5;
+        --muted: #8b93a5;
+        --accent: #3b82f6;
+        --ok: #57cc99;
+        --warn: #ffb86b;
+        --bad: #ff6b6b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        max-width: 980px;
+        margin-inline: auto;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h1 span { color: var(--accent); }
+      h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 20px 0 6px;
+      }
+      p.lead { margin: 0 0 20px; color: var(--muted); }
+      code { color: var(--accent); }
+      .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+      select, button {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 7px 12px;
+      }
+      button { border-color: var(--accent); color: var(--accent); font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      textarea {
+        width: 100%;
+        min-height: 240px;
+        resize: vertical;
+        padding: 12px;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        tab-size: 4;
+      }
+      pre {
+        margin: 0;
+        padding: 12px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        min-height: 44px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .field { display: block; margin-top: 10px; }
+      .field > span {
+        display: block;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      #stdin { min-height: 0; height: 62px; }
+      #stdout:empty::after,
+      #stderr:empty::after,
+      #diagnostics:empty::after { content: "—"; color: var(--muted); }
+      #status {
+        margin: 12px 0;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        background: var(--panel);
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      #status[data-state="ready"] { border-left-color: var(--ok); color: var(--ok); }
+      #status[data-state="error"] { border-left-color: var(--bad); color: var(--bad); }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+      #stderr, #diagnostics { border-left: 3px solid var(--warn); }
+    </style>
+  </head>
+  <body>
+    <h1>Odin in the <span>browser</span></h1>
+    <p class="lead">
+      Edit Odin, press Run, and the compiler — <code>odin.wasm</code>, a WASI module built from
+      <a href="https://github.com/karl-zylinski/wodin">wodin</a>, the fork of Odin with a direct
+      wasm backend — compiles it in this tab and runs the result. No server compiles anything, and
+      nothing is uploaded.
+    </p>
+
+    <div class="toolbar">
+      <label>Samples <select id="samples"></select></label>
+      <button id="run" disabled>Warming up…</button>
+      <span style="color: var(--muted)">Ctrl/⌘ + Enter</span>
+    </div>
+
+    <textarea id="source" spellcheck="false"></textarea>
+
+    <label class="field">
+      <span>stdin</span>
+      <textarea id="stdin" spellcheck="false" placeholder="fed to the program's standard input"></textarea>
+    </label>
+
+    <div id="status" data-state="loading">starting…</div>
+
+    <div class="grid">
+      <div>
+        <h2>Output</h2>
+        <pre id="stdout"></pre>
+      </div>
+      <div>
+        <h2>Program stderr</h2>
+        <pre id="stderr"></pre>
+      </div>
+    </div>
+
+    <h2>Compiler diagnostics</h2>
+    <pre id="diagnostics"></pre>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

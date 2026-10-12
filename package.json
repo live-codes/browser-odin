@@ -1,0 +1,18 @@
+{
+  "name": "browser-odin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Run Odin in the browser with no server: the Odin compiler (wodin's direct wasm backend) compiled to a WASI module, driven from a page",
+  "scripts": {
+    "assets": "sh scripts/build-assets.sh",
+    "assets:pack": "node scripts/build-assets.mjs",
+    "start": "node serve.mjs",
+    "test": "node scripts/smoke.mjs",
+    "check": "node --check serve.mjs && node --check public/wasi.js && node --check public/samples.js && node --check public/compile-worker.js && node --check public/app.js && node --check scripts/build-assets.mjs && node --check scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
