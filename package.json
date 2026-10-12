@@ -8,9 +8,13 @@
   "scripts": {
     "assets": "sh scripts/build-assets.sh",
     "assets:pack": "node scripts/build-assets.mjs",
+    "assets:package": "node packages/odin-wasm/scripts/sync-assets.mjs",
+    "build:iife": "npm --prefix packages/odin-wasm run build:iife",
     "start": "node serve.mjs",
     "test": "node scripts/smoke.mjs",
-    "check": "node --check serve.mjs && node --check public/wasi.js && node --check public/samples.js && node --check public/compile-worker.js && node --check public/app.js && node --check scripts/build-assets.mjs && node --check scripts/smoke.mjs"
+    "test:package": "npm --prefix packages/odin-wasm test",
+    "test:all": "npm test && npm run test:package",
+    "check": "node --check serve.mjs && node --check public/wasi.js && node --check public/samples.js && node --check public/compile-worker.js && node --check public/app.js && node --check scripts/build-assets.mjs && node --check scripts/smoke.mjs && npm --prefix packages/odin-wasm run check"
   },
   "engines": {
     "node": ">=20"

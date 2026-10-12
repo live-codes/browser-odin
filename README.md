@@ -140,12 +140,34 @@ Point `ODIN_SRC` at any wodin (or Odin) checkout to run the packer alone:
 | what | command |
 | --- | --- |
 | compile → run every sample under Node, with stdin and a compile error | `npm test` |
-| syntax-check the server, the page, the worker and the scripts | `npm run check` |
+| the package: both targets, stdin, args, exit codes, diagnostics, the bundle, the receipts | `npm run test:package` |
+| both of the above | `npm run test:all` |
+| syntax-check the server, the page, the worker, the scripts and the package | `npm run check` |
 | rebuild the assets | `sh scripts/build-assets.sh` |
 
 `npm test` is the one that matters: `public/wasi.js` has no browser-only API, so the whole chain runs
 in Node against the same assets the page fetches. What the browser adds is asset loading and the
 worker.
+
+## The package
+
+`packages/odin-wasm` is **`@live-codes/odin-wasm`** — the same compiler behind a small API, in the shape
+[`@live-codes/clang-wasm`](https://github.com/live-codes/clang-wasm) has, for LiveCodes and anything
+else to embed:
+
+```js
+import { createCompiler } from '@live-codes/odin-wasm';
+
+const compiler = await createCompiler({ baseUrl: new URL('/odin/', location.href) });
+const { output, errors, exitCode } = await compiler.run(source, stdin);
+compiler.dispose();
+```
+
+It ships its own copy of `odin.wasm` and the packed standard library (about 6 MB), a minified IIFE
+bundle for classic workers (`self.odinWasm`, 16.5 KB), and an `odin-wasm-copy-assets` command that
+writes the assets somewhere a page can fetch. In Node no `baseUrl` is needed at all. Its
+[README](packages/odin-wasm/README.md) is the contract; `packages/odin-wasm` is self-contained and can
+be published on its own.
 
 ## Licensing and provenance
 
