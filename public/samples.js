@@ -129,12 +129,17 @@ main :: proc() {
 	count := 0
 	for {
 		line, err := bufio.reader_read_string(&reader, '\\n')
-		if err != nil {
+		// The last line may have no trailing newline, and that comes back as an
+		// error together with the data — read the data first, then stop.
+		if len(line) == 0 {
 			break
 		}
 		if value, ok := strconv.parse_int(strings.trim_space(line)); ok {
 			total += value
 			count += 1
+		}
+		if err != nil {
+			break
 		}
 	}
 	fmt.printfln("%d numbers, sum %d", count, total)

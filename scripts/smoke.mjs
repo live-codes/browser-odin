@@ -166,6 +166,22 @@ const main = async () => {
     }
   }
 
+  // Odin's `bufio.reader_read_string` returns the data *together with* an error for a final line
+  // that has no newline, so a program that breaks on the error silently drops it. A program fed
+  // an unterminated line must still read it.
+  {
+    const name = 'read from stdin';
+    const started = Date.now();
+    const result = compileAndRun(module, library, SAMPLES[name], { stdin: '1\n2\n3\n4' });
+    const ok = result.ok && result.output === '4 numbers, sum 10\n';
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} with an unterminated last line (${Date.now() - started} ms)`);
+    if (!ok) {
+      failures++;
+      console.log(`     output:   ${JSON.stringify(result.output)}`);
+      console.log(`     compiler: ${(result.compileLog ?? '').trim().split('\n').slice(-6).join('\n               ')}`);
+    }
+  }
+
   // Samples that can only be *run* in a browser must at least compile for
   // js_wasm32 here.
   for (const name of ['canvas animation', 'read from stdin']) {
