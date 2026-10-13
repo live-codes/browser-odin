@@ -79,7 +79,10 @@ missing import into an opaque link error.
   an enum (`None`, `EOF`, …) compared with `nil`, not a `bool` — the sample that assumed a
   `(string, bool)` did not compile. And because the delimiter is included, trimming must remove
   `\n`; `strings.trim_space` does, a hand-rolled space/`\t`/`\r` trim does not (the symptom was
-  "0 numbers, sum 0" with no error at all).
+  "0 numbers, sum 0" with no error at all). Its error is not just "no more input": a final line with
+  no trailing newline comes back as **(data, `.EOF`)**, so a loop that breaks on the error *before*
+  using the data silently drops that line. stdin is passed through byte for byte — nothing appends a
+  newline — so reading a line means using the data and *then* stopping on the error.
 - **`os.stdin` works on `wasi_wasm32`** — `core/os/file_wasi.odin` maps fds 0/1/2 through the same
   `fd_read`/`fd_write` the shim provides, so a program reads the page's stdin box with no extra host
   support.

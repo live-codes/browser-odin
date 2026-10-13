@@ -1,6 +1,6 @@
 {
   "name": "@live-codes/odin-wasm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run Odin in the browser with one API, on the Odin compiler compiled to WebAssembly",
   "type": "module",
   "license": "MIT",

@@ -8,5 +8,6 @@
 
 export const ASSET_RECEIPTS = Object.freeze({
 	'odin.wasm': Object.freeze({ bytes: 3763439, sha256: '5044e383aa2415927cd518a4d3e6fdbcc6c99154ac90d212e154f18c092deef3' }),
-	'odin-src.pack.gz': Object.freeze({ bytes: 2502169, sha256: '567b1c0c1b50d3e557d119927ade3373dda91364acae3302f2cf01950a8dd8f9' })
+	'odin-src.pack.gz': Object.freeze({ bytes: 2502169, sha256: '567b1c0c1b50d3e557d119927ade3373dda91364acae3302f2cf01950a8dd8f9' }),
+	'odin.js': Object.freeze({ bytes: 72772, sha256: 'e918ba1614af23f02299976122d5edf4c994873ce4c6cdab621d42f3e9cb9733' })
 });

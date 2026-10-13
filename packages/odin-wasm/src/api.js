@@ -104,6 +104,29 @@ export function createApi({ packaged }) {
         });
       },
 
+      /**
+       * Compile without running, for a host that runs the module itself.
+       *
+       * A page that needs the DOM cannot use `run`: a worker has no `document`, so the module has to
+       * be instantiated on the page with Odin's own JS runtime. This hands back the module for that.
+       *
+       * @param {string} code - the Odin source.
+       * @param {object} [options] - per-call `target`, `compileArgs`, `fileName`.
+       * @returns {Promise<{ok: boolean, wasm: Uint8Array|null, errors: string[], compileMs: number}>}
+       */
+      async compile(code, options = {}) {
+        if (disposed) throw new Error('This compiler has been disposed.');
+        if (typeof code !== 'string') {
+          throw new Error('compile() needs the program source as its first argument.');
+        }
+        return engine.compileOnly({
+          code,
+          target: resolveTarget(options.target, defaults.target),
+          compileArgs: [...defaults.compileArgs, ...(options.compileArgs ?? [])],
+          fileName: options.fileName ?? defaults.fileName,
+        });
+      },
+
       /** Drop this compiler's hold on the shared engine. Further runs throw. */
       dispose() {
         if (disposed) return;

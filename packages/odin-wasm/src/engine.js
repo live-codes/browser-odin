@@ -44,6 +44,14 @@ const diagnosticLines = (text) =>
     .map((line) => line.trimEnd())
     .filter((line) => line.trim() !== '');
 
+/** Why a compile produced no module, as the lines a caller reads. */
+const compileFailure = (compiled) =>
+  compiled.crash
+    ? [compiled.crash]
+    : compiled.diagnostics.length > 0
+      ? compiled.diagnostics
+      : [`The compiler produced no module (exit code ${compiled.exitCode}).`];
+
 /**
  * @param {object} assets
  * @param {WebAssembly.Module} assets.compilerModule - the Odin compiler
@@ -97,6 +105,25 @@ export function createEngine({ compilerModule, libraryEntries }) {
       diagnostics: diagnosticLines(compilerOut.join('') + compilerErr.join('')),
       crash,
     };
+  };
+
+  /**
+   * Compile only, returning the module for the caller to run.
+   *
+   * A page that needs the DOM has to instantiate the program on the main thread — a worker has no
+   * `document`, and Odin's JS runtime is written for the page — so the caller takes the module
+   * instead of an output string.
+   *
+   * @returns {{ok: boolean, wasm: Uint8Array|null, errors: string[], compileMs: number}}
+   */
+  const compileOnly = ({ code, target, compileArgs = [], fileName = 'main.odin' }) => {
+    const started = now();
+    const compiled = compile({ code, target, compileArgs: [...compileArgs], fileName });
+    const compileMs = Math.round(now() - started);
+    if (compiled.artifact === null || compiled.artifact.length === 0) {
+      return { ok: false, wasm: null, errors: compileFailure(compiled), compileMs };
+    }
+    return { ok: true, wasm: compiled.artifact, errors: [], compileMs };
   };
 
   const runWasiTarget = (artifact, { input, args }) => {
@@ -155,12 +182,7 @@ export function createEngine({ compilerModule, libraryEntries }) {
     const compileMs = Math.round(now() - compileStarted);
 
     if (compiled.artifact === null || compiled.artifact.length === 0) {
-      const errors = compiled.crash
-        ? [compiled.crash]
-        : compiled.diagnostics.length > 0
-          ? compiled.diagnostics
-          : [`The compiler produced no module (exit code ${compiled.exitCode}).`];
-      return { stdout: '', stderr: '', output: '', errors, exitCode: null, compileMs, runMs: null };
+      return { stdout: '', stderr: '', output: '', errors: compileFailure(compiled), exitCode: null, compileMs, runMs: null };
     }
 
     const runStarted = now();
@@ -186,7 +208,7 @@ export function createEngine({ compilerModule, libraryEntries }) {
     };
   };
 
-  return { compileAndRun };
+  return { compileAndRun, compileOnly };
 }
 
 const capturedText = (captured) => ({

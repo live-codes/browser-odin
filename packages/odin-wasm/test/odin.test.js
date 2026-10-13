@@ -186,10 +186,47 @@ test('two compilers against the same source are independent', async () => {
 	second.dispose();
 });
 
-test('a disposed compiler refuses further runs', async () => {
-	const compiler = await createCompiler();
-	compiler.dispose();
-	await assert.rejects(() => compiler.run(HELLO), /disposed/);
+test('compile() hands back the module without running it', async () => {
+  const compiler = await createCompiler();
+  const result = await compiler.compile(HELLO);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.ok(result.wasm instanceof Uint8Array && result.wasm.length > 0);
+  // It is a real, instantiable module — the caller runs it.
+  assert.doesNotThrow(() => new WebAssembly.Module(result.wasm.slice()));
+  compiler.dispose();
+});
+
+test('compile() reports diagnostics and gives no module', async () => {
+  const compiler = await createCompiler();
+  const result = await compiler.compile(TYPE_ERROR);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.wasm, null);
+  assert.ok(result.errors.some((line) => /Cannot convert/.test(line)));
+  compiler.dispose();
+});
+
+test('compile() builds for the js target when asked', async () => {
+  const compiler = await createCompiler({ target: 'js_wasm32' });
+  const result = await compiler.compile(HELLO);
+
+  assert.equal(result.ok, true);
+  const module = new WebAssembly.Module(result.wasm.slice());
+  const modules = WebAssembly.Module.imports(module).map((entry) => entry.module);
+  assert.ok(
+    modules.includes('odin_env'),
+    `expected the js target's odin_env import, got: ${modules.join(', ')}`,
+  );
+  compiler.dispose();
+});
+
+test('a disposed compiler refuses compile() and run()', async () => {
+  const compiler = await createCompiler();
+  compiler.dispose();
+  await assert.rejects(() => compiler.run(HELLO), /disposed/);
+  await assert.rejects(() => compiler.compile(HELLO), /disposed/);
 });
 
 test('every asset shipped in the package matches its pinned receipt', async () => {

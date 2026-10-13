@@ -11,17 +11,25 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
 const ROOT_ASSETS = new URL('../../../assets/', import.meta.url);
+const PUBLIC = new URL('../../../public/', import.meta.url);
 const PACKAGE_ASSETS = new URL('../assets/', import.meta.url);
 const RECEIPTS = new URL('../src/asset-receipts.js', import.meta.url);
 
-// Loaded in this order, and the order is the load order.
-const ASSET_NAMES = ['odin.wasm', 'odin-src.pack.gz'];
+// What ships in assets/, in the order the package loads it, and where each comes from.
+const ASSETS = [
+  ['odin.wasm', new URL('odin.wasm', ROOT_ASSETS)],
+  ['odin-src.pack.gz', new URL('odin-src.pack.gz', ROOT_ASSETS)],
+  // Odin's own JS runtime, which is what a js_wasm32 program runs on when it needs the DOM — a
+  // worker has no `document`, so the host instantiates on the page. The repository vendors it for
+  // its own page; this is the same file.
+  ['odin.js', new URL('odin.js', PUBLIC)],
+];
 
 await mkdir(PACKAGE_ASSETS, { recursive: true });
 
 const receipts = [];
-for (const name of ASSET_NAMES) {
-  await copyFile(new URL(name, ROOT_ASSETS), new URL(name, PACKAGE_ASSETS));
+for (const [name, from] of ASSETS) {
+  await copyFile(from, new URL(name, PACKAGE_ASSETS));
   const bytes = await readFile(new URL(name, PACKAGE_ASSETS));
   receipts.push({
     name,

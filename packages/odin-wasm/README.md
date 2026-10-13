@@ -84,6 +84,27 @@ Compiles and runs. `input` is stdin as a string or `Uint8Array`, handed to the p
 what the compiler said, and if the compiler said nothing it holds the underlying error's message, so a
 failure is never silent.
 
+### `compiler.compile(code, options?)`
+
+Compiles without running, for a host that runs the module itself. A page that needs the DOM cannot use
+`run`: a worker has no `document`, and Odin's JS runtime is written for the page, so the module has to
+be instantiated on the main thread. This hands it over.
+
+| Field | Meaning |
+| --- | --- |
+| `ok` | Whether the program compiled. |
+| `wasm` | The module (a `Uint8Array`), or `null` if it did not compile. |
+| `errors` | The compiler's diagnostics, one string per line. |
+| `compileMs` | Wall clock for the compile. |
+
+```js
+const { ok, wasm, errors } = await compiler.compile(source, { target: 'js_wasm32' });
+```
+
+`assets/odin.js` is Odin's own JS runtime — what such a module runs on. `importScripts` it, then
+instantiate with `odin.setupDefaultImports(...)`, as the [demo page](https://github.com/live-codes/browser-odin)
+does; the program then reaches the DOM and a canvas.
+
 ### `compiler.dispose()`
 
 Drops this compiler's hold on the shared engine. Further runs throw.
@@ -131,6 +152,7 @@ a consumer never needs esbuild. Rebuild it with `npm run build:iife`.
 ```
 assets/odin.wasm          3.6 MB   the compiler (a WASI module, built with wasi-sdk)
 assets/odin-src.pack.gz   2.4 MB   Odin's base/ and core/, gzipped
+assets/odin.js             72 KB   Odin's own JS runtime, for running a js_wasm32 module on a page
 ```
 
 Three ways to reach them:
@@ -154,7 +176,7 @@ package will not find it.
 | | why |
 | --- | --- |
 | **`vendor:` packages** (`vendor:raylib`, …) | not shipped: 91 MB, mostly DirectX/SDL and C libraries with prebuilt wasm objects |
-| **a DOM off the page** | `js_wasm32` needs one; in Node only its console, stdin and `js.evaluate` are real |
+| **the DOM through `run()`** | a worker — and Node — have no `document`. Use `compile()` and instantiate on a page with `assets/odin.js`; that is what the LiveCodes result page does |
 | **`js_wasm32` exit codes** | Odin's js runtime exits by trapping, so a program's status is reported as 1 rather than the number it passed |
 | **threads, files, sockets** | WASI preview 1 here is single-threaded, and a program is given an empty filesystem |
 | **a runaway program** | the compiler and the program both run synchronously; there is no cancellation |
