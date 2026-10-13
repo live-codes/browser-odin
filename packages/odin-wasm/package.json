@@ -4,6 +4,9 @@
   "description": "Run Odin in the browser with one API, on the Odin compiler compiled to WebAssembly",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "node": "./src/index.node.js",
@@ -29,7 +32,9 @@
   "scripts": {
     "sync-assets": "node scripts/sync-assets.mjs",
     "build:iife": "node scripts/build-iife.mjs",
-    "check": "node --check src/api.js && node --check src/assets.js && node --check src/asset-receipts.js && node --check src/engine.js && node --check src/host-js.js && node --check src/pack.js && node --check src/runtime.js && node --check src/wasi-host.js && node --check src/index.js && node --check src/index.node.js && node --check src/packaged.node.js && node --check bin/copy-assets.mjs && node --check scripts/sync-assets.mjs && node --check scripts/build-iife.mjs",
+    "check-package": "node scripts/check-package.mjs",
+    "prepack": "node scripts/check-package.mjs",
+    "check": "node --check src/api.js && node --check src/assets.js && node --check src/asset-receipts.js && node --check src/engine.js && node --check src/host-js.js && node --check src/pack.js && node --check src/runtime.js && node --check src/wasi-host.js && node --check src/index.js && node --check src/index.node.js && node --check src/packaged.node.js && node --check bin/copy-assets.mjs && node --check scripts/sync-assets.mjs && node --check scripts/build-iife.mjs && node --check scripts/check-package.mjs",
     "test": "node --test \"test/*.test.js\""
   },
   "devDependencies": {

@@ -26,15 +26,14 @@ headers, and the page runs with `crossOriginIsolated === false`.)
 ## Run it
 
 ```bash
-npm run assets   # once — build odin.wasm and pack the standard library (Linux or WSL)
 npm start        # → http://localhost:8144/
 ```
 
-`npm run assets` needs [wodin](https://github.com/karl-zylinski/wodin) (the fork of Odin with a
-direct wasm backend) and [wasi-sdk](https://github.com/WebAssembly/wasi-sdk); see
-[Building the assets](#building-the-assets). Without them the page loads and reports what is
-missing. Once the assets exist, any static file server works — nothing is compiled on the server,
-and the page only fetches static files.
+The assets are committed, so there is nothing to build first. To rebuild them, `npm run assets` needs
+[wodin](https://github.com/karl-zylinski/wodin) (the fork of Odin with a direct wasm backend) and
+[wasi-sdk](https://github.com/WebAssembly/wasi-sdk) — see
+[Building the assets](#building-the-assets). Once the assets exist, any static file server works —
+nothing is compiled on the server, and the page only fetches static files.
 
 A static server *is* required (ES modules and Workers do not load over `file://`), and it must
 serve `odin.wasm` as `application/wasm`, without which `WebAssembly.compileStreaming` refuses the
@@ -167,7 +166,8 @@ It ships its own copy of `odin.wasm` and the packed standard library (about 6 MB
 bundle for classic workers (`self.odinWasm`, 16.5 KB), and an `odin-wasm-copy-assets` command that
 writes the assets somewhere a page can fetch. In Node no `baseUrl` is needed at all. Its
 [README](packages/odin-wasm/README.md) is the contract; `packages/odin-wasm` is self-contained and can
-be published on its own.
+be published on its own. Its WASI host is the same code as the demo's `public/wasi.js`, carried there
+so the package stands alone — the two are kept in step by hand.
 
 ## Licensing and provenance
 

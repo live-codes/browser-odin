@@ -163,9 +163,13 @@ package will not find it.
 
 ```bash
 npm test          # 17 checks: both targets, stdin, args, exit codes, diagnostics, the bundle, the receipts
+npm run check-package # what `prepack` runs: every asset hashes to its receipt and the bundle is present
 npm run sync-assets   # copy ../../assets into this package and re-pin the receipts
 npm run build:iife    # rebuild dist/ (needs esbuild; `npm install --include=dev`)
 ```
+
+`src/wasi-host.js` is the same WASI host as the demo repository's `public/wasi.js`, carried here so
+the package stands alone; the two are kept in step by hand.
 
 The tests run against the packaged assets with no server. `test/iife.test.js` loads the committed
 bundle in a `vm` context and checks its shape, so the shipped file cannot rot unnoticed.
